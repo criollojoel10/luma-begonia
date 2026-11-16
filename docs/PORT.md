@@ -33,3 +33,25 @@ Therefore:
   plausible even without mainline.
 - WiFi is MediaTek `wlan_gen4m` + `wmt_drv`; the same drivers Luma's device package would need to ship.
 - The bootloader accepts recovery zips only (the vendor's own format); the factory image is the way back.
+
+## Bring-up boot image from the phone's own kernel (2026-11-16)
+
+Instead of the 4.14 vendor GitHub tree (which fights gcc 14), the boot image was packed from the kernel that
+already runs on this phone:
+
+| input | source | size |
+|---|---|---|
+| `Image.gz` | `/boot/Image.gz` on the phone | 17 069 246 B |
+| initramfs | `/boot/initramfs-linux.img` (Kupfer's, finds a `kupfer_root` label) | 17 129 587 B |
+| DTB | `/boot/dtbs/mediatek/mt6785-xiaomi-begonia-tianma.dtb` | 62 K |
+
+Packed with `scripts/mkbootimg.py` and the offsets read from the phone's own `aboot.img`
+(`base 0x40000000`, kernel `0x40080000`, ramdisk `0x47c80000`, page 2048, header v2):
+
+```
+magic b'ANDROID!' kernel 17069246 0x40080000 ramdisk 17129587 0x47c80000 page 2048 ver 2
+```
+
+Artifact: `out/luma-begonia-bringup-boot.img` (33 MB), published as a release asset. This image boots the
+kernel this phone already runs and drops into Kupfer's initramfs: it proves the packing and is the base on
+which Luma's dracut initramfs gets substituted once the device package exists.
