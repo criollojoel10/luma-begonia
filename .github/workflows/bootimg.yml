@@ -23,10 +23,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq build-essential bc bison flex libssl-dev libelf-dev \
-            gcc-aarch64-linux-gnu python3 python3-pip xz-utils device-tree-compiler cpio \
-            >/dev/null
-          python3 -m pip install --quiet --break-system-packages mkbootimg || true
-          command -v mkbootimg || sudo apt-get install -y -qq android-sdk-build-tools >/dev/null
+            gcc-aarch64-linux-gnu python3 python3-pip xz-utils device-tree-compiler cpio >/dev/null
+          python3 -m pip install --quiet --break-system-packages mkbootimg
 
       - name: Luma ARM image (verify the published hash)
         run: |
@@ -34,7 +32,6 @@ jobs:
           curl -fsSL --retry 3 -o out/luma/luma.sparse "$LUMA_IMAGE"
           curl -fsSL --retry 3 -o out/luma/luma.sparse.sha256 "$LUMA_SHA256"
           cd out/luma
-          # the .sha256 file names its own file; compare only the digest
           expected=$(awk '{print $1}' luma.sparse.sha256)
           actual=$(sha256sum luma.sparse | awk '{print $1}')
           test "$expected" = "$actual" || { echo "Luma image hash mismatch"; exit 1; }
@@ -69,56 +66,13 @@ jobs:
           cp arch/arm64/boot/Image.gz ../out/Image.gz
           ls -l ../out/Image.gz
 
-      - name: Initramfs (bring-up stub)
+      - name: Initramfs
         run: |
-          set -e
-          mkdir -p initramfs/{bin,dev,proc,sys,newroot}
-          cat > initramfs/init <<'EOF'
-          #!/bin/sh
-          # Bring-up initramfs: proves the kernel/initramfs pair boots and finds the Luma userdata image.
-          # Luma's own boot resolver replaces this once the device package exists.
-          mount -t proc proc /proc
-          mount -t sysfs sysfs /sys
-          mount -t devtmpfs devtmpfs /dev
-          echo "luma-begonia bring-up: kernel is up"
-          cat /proc/version
-          for p in /dev/block/by-name/userdata /dev/block/platform/bootdevice/by-name/userdata; do
-            [ -e "$p" ] && echo "userdata: $p"
-          done
-          exec sh
-          EOF
-          chmod +x initramfs/init
-          (cd initramfs && find . | cpio -o -H newc 2>/dev/null | gzip -9) > out/initramfs.cpio.gz
-          ls -l out/initramfs.cpio.gz
+          sh scripts/mkinitramfs.sh
 
-      - name: boot.img (begonia: header v2, page 2048)
+      - name: boot.img
         run: |
-          python3 - <<'PY'
-          import subprocess, sys
-          cmd = [
-              "mkbootimg",
-              "--kernel", "out/Image.gz",
-              "--ramdisk", "out/initramfs.cpio.gz",
-              "--base", "0x40078000",
-              "--kernel_offset", "0x00008000",
-              "--ramdisk_offset", "0x07c08000",
-              "--second_offset", "0x00f00000",
-              "--tags_offset", "0x0bc08000",
-              "--pagesize", "2048",
-              "--header_version", "2",
-              "-o", "out/boot.img",
-          ]
-          print(" ".join(cmd))
-          subprocess.check_call(cmd)
-          PY
-          ls -l out/boot.img
-          python3 - <<'PY'
-          import struct
-          raw = open("out/boot.img", "rb").read(4096)
-          ks = struct.unpack("<I", raw[8:12])[0]
-          page = struct.unpack("<I", raw[36:40])[0]
-          print(f"boot.img: kernel {ks} B, page {page}")
-          PY
+          python3 scripts/pack_bootimg.py out/Image.gz out/initramfs.cpio.gz out/boot.img
 
       - name: Artifacts
         uses: actions/upload-artifact@v4
