@@ -10,6 +10,7 @@ env:
   LUMA_SHA256: https://media.simplyluma.com/media/aarch64/nightly/luma-nightly-20261115.2-aarch64-disk.sparse.sha256
   KERNEL_REPO: https://github.com/AgentFabulous/begonia
   KERNEL_COMMIT: 78b3211ba301969cbb685fb9890c7b14d14497f1
+  CROSS_COMPILE_ARM32: arm-linux-gnueabi-
 
 jobs:
   bootimg:
@@ -23,7 +24,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq build-essential bc bison flex libssl-dev libelf-dev \
-            gcc-aarch64-linux-gnu python3 xz-utils device-tree-compiler cpio >/dev/null
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi python3 xz-utils device-tree-compiler cpio >/dev/null
 
       - name: Luma ARM image (verify the published hash)
         run: |
@@ -61,7 +62,7 @@ jobs:
       - name: Build Image.gz
         working-directory: kernel
         run: |
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image.gz -j"$(nproc)"
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image.gz -j"$(nproc)"
           cp arch/arm64/boot/Image.gz ../out/Image.gz
           ls -l ../out/Image.gz
 
