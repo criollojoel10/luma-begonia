@@ -1,0 +1,133 @@
+name: bootimg
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  LUMA_IMAGE: https://media.simplyluma.com/media/aarch64/nightly/luma-nightly-20261115.2-aarch64-disk.sparse
+  LUMA_SHA256: https://media.simplyluma.com/media/aarch64/nightly/luma-nightly-20261115.2-aarch64-disk.sparse.sha256
+  KERNEL_REPO: https://github.com/AgentFabulous/begonia
+  KERNEL_COMMIT: 78b3211ba301969cbb685fb9890c7b14d14497f1
+
+jobs:
+  bootimg:
+    name: kernel + Luma image + boot.img
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential bc bison flex libssl-dev libelf-dev \
+            gcc-aarch64-linux-gnu python3 python3-pip xz-utils device-tree-compiler cpio \
+            >/dev/null
+          python3 -m pip install --quiet --break-system-packages mkbootimg || true
+          command -v mkbootimg || sudo apt-get install -y -qq android-sdk-build-tools >/dev/null
+
+      - name: Luma ARM image (verify the published hash)
+        run: |
+          mkdir -p out/luma
+          curl -fsSL --retry 3 -o out/luma/luma.sparse "$LUMA_IMAGE"
+          curl -fsSL --retry 3 -o out/luma/luma.sparse.sha256 "$LUMA_SHA256"
+          cd out/luma
+          # the .sha256 file names its own file; compare only the digest
+          expected=$(awk '{print $1}' luma.sparse.sha256)
+          actual=$(sha256sum luma.sparse | awk '{print $1}')
+          test "$expected" = "$actual" || { echo "Luma image hash mismatch"; exit 1; }
+          echo "Luma image ok: $actual"
+
+      - name: Vendor kernel (pinned)
+        run: |
+          git init -q kernel
+          git -C kernel remote add origin "$KERNEL_REPO"
+          git -C kernel fetch -q --depth 1 origin "$KERNEL_COMMIT"
+          git -C kernel checkout -q FETCH_HEAD
+          git -C kernel log -1 --oneline
+
+      - name: Configure (FUSE is Luma's requirement)
+        working-directory: kernel
+        run: |
+          if [ -f arch/arm64/configs/begonia_user_defconfig ]; then
+            make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- begonia_user_defconfig
+          elif [ -f arch/arm64/configs/begonia_defconfig ]; then
+            make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- begonia_defconfig
+          else
+            make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig
+          fi
+          ./scripts/config --enable FUSE_FS --enable BLK_DEV_INITRD --enable DEVTMPFS
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
+          grep -E "^CONFIG_(FUSE_FS|BLK_DEV_INITRD|DEVTMPFS)=" .config
+
+      - name: Build Image.gz
+        working-directory: kernel
+        run: |
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image.gz -j"$(nproc)"
+          cp arch/arm64/boot/Image.gz ../out/Image.gz
+          ls -l ../out/Image.gz
+
+      - name: Initramfs (bring-up stub)
+        run: |
+          set -e
+          mkdir -p initramfs/{bin,dev,proc,sys,newroot}
+          cat > initramfs/init <<'EOF'
+          #!/bin/sh
+          # Bring-up initramfs: proves the kernel/initramfs pair boots and finds the Luma userdata image.
+          # Luma's own boot resolver replaces this once the device package exists.
+          mount -t proc proc /proc
+          mount -t sysfs sysfs /sys
+          mount -t devtmpfs devtmpfs /dev
+          echo "luma-begonia bring-up: kernel is up"
+          cat /proc/version
+          for p in /dev/block/by-name/userdata /dev/block/platform/bootdevice/by-name/userdata; do
+            [ -e "$p" ] && echo "userdata: $p"
+          done
+          exec sh
+          EOF
+          chmod +x initramfs/init
+          (cd initramfs && find . | cpio -o -H newc 2>/dev/null | gzip -9) > out/initramfs.cpio.gz
+          ls -l out/initramfs.cpio.gz
+
+      - name: boot.img (begonia: header v2, page 2048)
+        run: |
+          python3 - <<'PY'
+          import subprocess, sys
+          cmd = [
+              "mkbootimg",
+              "--kernel", "out/Image.gz",
+              "--ramdisk", "out/initramfs.cpio.gz",
+              "--base", "0x40078000",
+              "--kernel_offset", "0x00008000",
+              "--ramdisk_offset", "0x07c08000",
+              "--second_offset", "0x00f00000",
+              "--tags_offset", "0x0bc08000",
+              "--pagesize", "2048",
+              "--header_version", "2",
+              "-o", "out/boot.img",
+          ]
+          print(" ".join(cmd))
+          subprocess.check_call(cmd)
+          PY
+          ls -l out/boot.img
+          python3 - <<'PY'
+          import struct
+          raw = open("out/boot.img", "rb").read(4096)
+          ks = struct.unpack("<I", raw[8:12])[0]
+          page = struct.unpack("<I", raw[36:40])[0]
+          print(f"boot.img: kernel {ks} B, page {page}")
+          PY
+
+      - name: Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: luma-begonia-bootimg
+          path: |
+            out/boot.img
+            out/Image.gz
+            out/initramfs.cpio.gz
+            out/luma/luma.sparse.sha256
+          if-no-files-found: error
+          retention-days: 14
