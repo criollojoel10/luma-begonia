@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# Boot policy for begonia. Format and offsets from postmarketOS deviceinfo (page 2048, base 0x40078000)
+# and from the images that boot on this phone.
+schema = 1
+partition = "boot"
+os_version = "99.87.36"
+os_patch_level = "2099-12-31"
+
+[cmdline]
+args = [
+  "console=tty0",
+  "rootwait",
+  "ro",
+  "init=/init",
+]
+
+[avb]
+footer = "hash"
+algorithm = "NONE"
+hash_algorithm = "sha256"
+vbmeta = "untouched"
+
+[dtbo]
+policy = "untouched"   # no Luma DTB for MT6785 yet

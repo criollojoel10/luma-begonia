@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+# Modeled on devices/fairphone/fp6/device.toml of SimplyLuma/luma.
+# Every value here was read from the phone itself (docs/PORT.md records how).
+schema = 1
+vendor = "xiaomi"
+codename = "begonia"
+name = "Xiaomi Redmi Note 8 Pro"
+marketing_name = "Redmi Note 8 Pro"
+form_factor = "phone"
+year = 2019
+soc = "mediatek/mt6785"          # no mainline branch exists; see docs/PORT.md
+tier = "experimental"
+maintainers = ["@criollojoel10"]
+fastboot_product = "begonia"
+
+[kernel]
+# Luma asks for a mainline-based branch per SoC family. For MT6785 there is none, so this port
+# is pinned to the vendor tree that already runs on the phone (kernel 7.1.0 label, MTK 4.19 base).
+tag = "vendor-78b3211ba301969cbb685fb9890c7b14d14497f1"
+release = "7.1.0"
+config_fragments = ["config/kernel/begonia.fragment"]
+
+[display]
+panel = "novatek,nt36672a"
+width = 1080
+height = 2340
+density = 395
+
+[gpu]
+name = "Mali-G76 MC4"
+driver = "panfrost"               # bound at 13040000.gpu on the running phone
+
+[storage]
+type = "ufs"
+userdata = "/dev/disk/by-partlabel/userdata"
+
+[notes]
+# A-only device: no slots, no recovery partition. A wrong boot image means fastboot, not a rollback.
+slots = false

@@ -55,7 +55,7 @@ jobs:
           else
             make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig
           fi
-          ./scripts/config --enable FUSE_FS --enable BLK_DEV_INITRD --enable DEVTMPFS
+          ./scripts/config --enable FUSE_FS --enable BLK_DEV_INITRD --enable DEVTMPFS --enable DEVTMPFS_MOUNT
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
           grep -E "^CONFIG_(FUSE_FS|BLK_DEV_INITRD|DEVTMPFS)=" .config
 

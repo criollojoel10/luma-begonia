@@ -1,0 +1,7 @@
+# begonia (MT6785) kernel fragment: the minimum Luma's boot resolver needs.
+# The vendor kernel ships FUSE as a module (CONFIG_FUSE_FS=m); the resolver mounts the
+# Luma image through it before any module can load, so it has to be built in.
+CONFIG_FUSE_FS=y
+CONFIG_BLK_DEV_INITRD=y
+CONFIG_DEVTMPFS=y
+CONFIG_DEVTMPFS_MOUNT=y
