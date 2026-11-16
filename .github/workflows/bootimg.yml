@@ -62,7 +62,10 @@ jobs:
       - name: Build Image.gz
         working-directory: kernel
         run: |
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image.gz -j"$(nproc)"
+          # 4.14 predates -Warray-compare; gcc 14 turns it into an error
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            KCFLAGS="-Wno-error=array-compare -Wno-error=incompatible-pointer-types -Wno-error=int-conversion" \
+            Image.gz -j"$(nproc)"
           cp arch/arm64/boot/Image.gz ../out/Image.gz
           ls -l ../out/Image.gz
 
