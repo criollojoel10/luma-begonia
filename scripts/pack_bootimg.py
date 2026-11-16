@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Pack a begonia boot image (header v2, page 2048) and print what the header says."""
+import os
 import struct
 import subprocess
 import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+MKBOOTIMG = os.path.join(HERE, "mkbootimg.py")
 
 OFFSETS = {
     "--base": "0x40078000",
@@ -17,7 +21,7 @@ def main(argv: list[str]) -> int:
     kernel = argv[1] if len(argv) > 1 else "out/Image.gz"
     ramdisk = argv[2] if len(argv) > 2 else "out/initramfs.cpio.gz"
     out = argv[3] if len(argv) > 3 else "out/boot.img"
-    cmd = ["mkbootimg", "--kernel", kernel, "--ramdisk", ramdisk]
+    cmd = [sys.executable, MKBOOTIMG, "--kernel", kernel, "--ramdisk", ramdisk]
     for key, value in OFFSETS.items():
         cmd += [key, value]
     cmd += ["--pagesize", "2048", "--header_version", "2", "-o", out]

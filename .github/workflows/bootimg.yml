@@ -23,8 +23,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq build-essential bc bison flex libssl-dev libelf-dev \
-            gcc-aarch64-linux-gnu python3 python3-pip xz-utils device-tree-compiler cpio >/dev/null
-          python3 -m pip install --quiet --break-system-packages mkbootimg
+            gcc-aarch64-linux-gnu python3 xz-utils device-tree-compiler cpio >/dev/null
 
       - name: Luma ARM image (verify the published hash)
         run: |
