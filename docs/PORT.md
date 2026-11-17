@@ -55,3 +55,20 @@ magic b'ANDROID!' kernel 17069246 0x40080000 ramdisk 17129587 0x47c80000 page 20
 Artifact: `out/luma-begonia-bringup-boot.img` (33 MB), published as a release asset. This image boots the
 kernel this phone already runs and drops into Kupfer's initramfs: it proves the packing and is the base on
 which Luma's dracut initramfs gets substituted once the device package exists.
+
+## v0.2 — why v0.1 bootlooped on the phone
+
+The v0.1 image was packed with an empty cmdline. Kupfer's initramfs needs the *`kupfer`* argument to load its
+early modules (panel, touch, regulators) and find the rootfs; without it the kernel never reaches the root and
+the phone reboots in a loop.
+
+`out/luma-begonia-bringup-boot-v0.2.img` (33 MB) carries the cmdline copied from the phone's own `aboot.img`:
+
+```
+kupfer earlymodules=lm36274_bl,lm363x-regulator,novatek-nvt-ts-spi,panel-novatek-nt36672a,ti-lmu console=tty0 bootopt=64S3,32N2,64N2
+```
+
+Header: kernel 17 069 246 B, page 2048, v2, offsets `0x40000000/0x00080000/0x07c80000` (from `aboot.img`).
+Recovery on the phone: `fastboot flash boot aboot-kupfer-backup.img` (34 269 184 B, sha256
+`952aa85094f019abab64de0e26a6595fb75608ba7a52e67d0e2aea56a12dc1c4`, also kept at
+`/home/joel/aboot-kupfer-backup.img` on the device).

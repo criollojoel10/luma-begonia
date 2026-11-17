@@ -8,12 +8,13 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 MKBOOTIMG = os.path.join(HERE, "mkbootimg.py")
 
+# Read from this phone's own aboot.img header (v2, page 2048): kernel 0x40080000, ramdisk 0x47c80000.
 OFFSETS = {
-    "--base": "0x40078000",
-    "--kernel_offset": "0x00008000",
-    "--ramdisk_offset": "0x07c08000",
+    "--base": "0x40000000",
+    "--kernel_offset": "0x00080000",
+    "--ramdisk_offset": "0x07c80000",
     "--second_offset": "0x00f00000",
-    "--tags_offset": "0x0bc08000",
+    "--tags_offset": "0x0bc80000",
 }
 
 
@@ -21,7 +22,11 @@ def main(argv: list[str]) -> int:
     kernel = argv[1] if len(argv) > 1 else "out/Image.gz"
     ramdisk = argv[2] if len(argv) > 2 else "out/initramfs.cpio.gz"
     out = argv[3] if len(argv) > 3 else "out/boot.img"
-    cmd = [sys.executable, MKBOOTIMG, "--kernel", kernel, "--ramdisk", ramdisk]
+    cmdline = argv[4] if len(argv) > 4 else ""
+    dtb = argv[5] if len(argv) > 5 else "out/begonia.dtb"
+    cmd = [sys.executable, MKBOOTIMG, "--kernel", kernel, "--ramdisk", ramdisk, "--dtb", dtb]
+    if cmdline:
+        cmd += ["--cmdline", cmdline]
     for key, value in OFFSETS.items():
         cmd += [key, value]
     cmd += ["--pagesize", "2048", "--header_version", "2", "-o", out]
